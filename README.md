@@ -1,6 +1,6 @@
 <p align="center"><img src="./app/assets/images/SealCircle.png" width="150px" height="150px" alt="aventium softworks"></p>
 
-<h1 align="center">LunarCraft Launcher</h1>
+<h1 align="center">Yerarium Launcher</h1>
 
 <em><h5 align="center">(formerly Electron Launcher)</h5></em>
 
@@ -39,7 +39,7 @@ This is not an exhaustive list. Download and install the launcher to gauge all i
 
 ## Downloads
 
-You can download from [GitHub Releases](https://github.com/FoudreTeam/LunarCraftLauncher2/releases)
+You can download from [GitHub Releases](https://github.com/FoudreTeam/YerariumLauncher2/releases)
 
 #### Latest Release
 

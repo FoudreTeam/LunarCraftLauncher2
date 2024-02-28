@@ -48,7 +48,7 @@ if(!isDev){
                 loggerAutoUpdater.info('Mise à jours disponible !', info.version)
                 
                 if(process.platform === 'darwin'){
-                    info.darwindownload = `https://github.com/dscalzi/HeliosLauncher/releases/download/${info.version}/LunarCraft.Launcher-setup-${info.version}${process.arch === 'arm64' ? '-arm64' : '-x64'}.dmg`
+                    info.darwindownload = `https://github.com/dscalzi/HeliosLauncher/releases/download/${info.version}/Yerarium.Launcher-setup-${info.version}${process.arch === 'arm64' ? '-arm64' : '-x64'}.dmg`
                     showUpdateUI(info)
                 }
                 

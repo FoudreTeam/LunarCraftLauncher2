@@ -318,7 +318,7 @@ async function asyncSystemScan(effectiveJavaOptions, launchAfter = true){
         // Show this information to the user.
         setOverlayContent(
             'Installation de<br>Java manquant',
-            `Pour pouvoir jouer à LunarCraft vous avez besoin d'une version 64-bits de Java ${effectiveJavaOptions.suggestedMajor}. Voulez-vous l'installer maintenant?`,
+            `Pour pouvoir jouer à Yerarium vous avez besoin d'une version 64-bits de Java ${effectiveJavaOptions.suggestedMajor}. Voulez-vous l'installer maintenant?`,
             'Installer Java',
             'Installer Java Manuellement'
         )
