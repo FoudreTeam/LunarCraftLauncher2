@@ -224,9 +224,12 @@ function createWindow() {
 
     win = new BrowserWindow({
         width: 980,
-        height: 552,
+        height: 562,
         icon: getPlatformIcon('SealCircle'),
-        frame: false,
+        frame: true,
+        fullscreenable:false,
+        fullscreen: false,
+        maximizable: false,
         webPreferences: {
             preload: path.join(__dirname, 'app', 'assets', 'js', 'preloader.js'),
             nodeIntegration: true,
@@ -246,7 +249,7 @@ function createWindow() {
 
     win.removeMenu()
 
-    win.resizable = true
+    win.resizable = false
 
     win.on('closed', () => {
         win = null

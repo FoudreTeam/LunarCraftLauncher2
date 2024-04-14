@@ -1,13 +1,13 @@
 {
   "name": "lunarcraftlauncher",
-  "version": "1.1.6",
+  "version": "1.1.7",
   "productName": "LunarCraft Launcher",
   "description": "LunarCraft Launcher Serveur Survie Moddée",
   "author": "FoudreTeam",
   "license": "ISC License",
-  "homepage": "https://github.com/FoudreTeam/LunarCraftLauncher",
+  "homepage": "https://github.com/FoudreTeam/LunarCraftLauncher2",
   "bugs": {
-    "url": "https://github.com/FoudreTeam/LunarCraftLauncher/issues"
+    "url": "https://github.com/FoudreTeam/LunarCraftLauncher2/issues"
   },
   "private": true,
   "main": "index.js",
