@@ -70,7 +70,7 @@ body, button {
 
 /* Undraggable region on the top of the frame. */
 #frameResizableTop {
-    height: 2px;
+    height: 0px;
     width: 100%;
     -webkit-app-region: no-drag;
 }
