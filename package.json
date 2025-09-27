@@ -39,7 +39,7 @@
   },
   "devDependencies": {
     "electron": "^38.1.2",
-    "electron-builder": "^23.6.0",
+    "electron-builder": "^26.0.12",
     "eslint": "^8.38.0"
   },
   "repository": {
