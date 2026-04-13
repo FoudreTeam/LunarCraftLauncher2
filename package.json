@@ -5,9 +5,9 @@
   "description": "Launcher officiel de LunarCraft",
   "author": "FoudreTeam",
   "license": "All Rights Reserved.",
-  "homepage": "https://github.com/dscalzi/HeliosLauncher",
+  "homepage": "https://github.com/FoudreTeam/LunarCraftLauncher2",
   "bugs": {
-    "url": "https://github.com/dscalzi/HeliosLauncher/issues"
+    "url": "https://github.com/FoudreTeam/LunarCraftLauncher2/issues"
   },
   "private": true,
   "main": "index.js",
@@ -47,6 +47,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dscalzi/HeliosLauncher.git"
+    "url": "git+https://github.com/FoudreTeam/LunarCraftLauncher2.git"
   }
 }
