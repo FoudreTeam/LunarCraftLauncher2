@@ -70,7 +70,7 @@ body, button {
 
 /* Undraggable region on the top of the frame. */
 #frameResizableTop {
-    height: 0px;
+    height: 2px;
     width: 100%;
     -webkit-app-region: no-drag;
 }
@@ -78,7 +78,7 @@ body, button {
 /* Flexbox to wrap the main frame content. */
 #frameMain {
     display: flex;
-    height: 0px
+    height: 20px
 }
 
 /* Undraggable region on the left and right of the frame. */
@@ -273,11 +273,11 @@ body, button {
 */
 
 #welcomeImageSeal {
-    border-radius: 2%;
+    border-radius: 50%;
     border: 2px solid #cad7e1;
     background: rgba(1, 2, 1, 0.5);
     height: 125px;
-    width: 150px;
+    width: 125px;
     box-shadow: 0px 0px 10px 0px rgb(0, 0, 0);
     margin-bottom: 5%;
     margin-top: 10%;
@@ -2856,9 +2856,9 @@ input:checked + .toggleSwitchSlider:before {
 /* Logo image. */
 #image_seal {
     height: 70px;
-    width: 70px;
+    width: auto;
     position: relative;
-    border: 2px solid darkviolet;
+    border: 2px solid white;
     box-sizing: border-box;
     border-radius: 50%;
 }
@@ -3136,13 +3136,13 @@ input:checked + .toggleSwitchSlider:before {
     transition-delay:0s;
 }
 
-/* Twitter icon colors. */
-#twitterSVG:hover,
-#twitterURL:focus #twitterSVG {
-    fill: #1da1f2;
+/* X icon colors. */
+#xSVG:hover,
+#xURL:focus #xSVG {
+    fill: #000000;
 }
-#twitterSVG:active {
-    fill: #1b8dd4;
+#xSVG:active {
+    fill: #090909;
 }
 
 /* Instagram icon colors. */
