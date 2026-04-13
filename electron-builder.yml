@@ -1,5 +1,5 @@
 appId: 'lunarcraftlauncher'
-productName: 'LunarCraft Launcher'
+productName: 'LunarCraft-Launcher'
 artifactName: '${productName}-setup-${version}.${ext}'
 
 copyright: 'Copyright © 2023-2026 FoudreTeam'
