@@ -266,18 +266,18 @@ requiresJava = "Requires Java {major} x64."
 availableOptions = "Available Options for Java {major} (HotSpot VM)"
 
 [js.settings.about]
-preReleaseTitle = "Pre-release"
-stableReleaseTitle = "Stable Release"
+preReleaseTitle = "Version Pre-Release"
+stableReleaseTitle = "Version Stable"
 releaseNotesFailed = "Failed to load release notes."
 
 [js.settings.updates]
-newReleaseTitle = "New Release Available"
+newReleaseTitle = "Nouvelle mise à jour disponible!"
 newPreReleaseTitle = "New Pre-release Available"
-downloadingButton = "Downloading.."
+downloadingButton = "Téléchargement.."
 downloadButton = 'Download from GitHub<span style="font-size: 10px;color: gray;text-shadow: none !important;">Close the launcher and run the dmg to update.</span>'
-latestVersionTitle = "You Are Running the Latest Version"
-checkForUpdatesButton = "Check for Updates"
-checkingForUpdatesButton = "Checking for Updates.."
+latestVersionTitle = "Vous êtes sur la dernière version"
+checkForUpdatesButton = "Vérifier les mises à jour"
+checkingForUpdatesButton = "Vérification.."
 
 [js.settings.msftLogin]
 errorTitle = "Microsoft Login Failed"
