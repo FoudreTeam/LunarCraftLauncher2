@@ -329,7 +329,7 @@ body, button {
 .settingsFieldLeft { display: flex; flex-direction: column; gap: 5px; }
 .settingsFieldTitle { font-size: 8px; font-family: var(--mc-font); color: var(--text-white); text-shadow: 1px 1px 0 #000; }
 .settingsFieldDesc { font-size: 14px; font-family: var(--mc-font-vt); color: var(--text-gray); }
-.settingsDivider { height: 2px; width: 75%; background: #111; box-shadow: 0 1px 0 #2a2a2a; }
+.settingsDivider { height: 2px; width: 75%; background: #111; box-shadow: 0 2px 0 #2a2a2a; }
 .toggleSwitch { position: relative; display: inline-block; width: 44px; height: 20px; }
 .toggleSwitch input { display: none; }
 .toggleSwitchSlider { position: absolute; cursor: pointer; inset: 0; background: var(--panel-inset); border: 2px solid #111; box-shadow: inset 2px 2px 0 #000, inset -1px -1px 0 #444; transition: none; }
@@ -603,13 +603,23 @@ input:checked + .toggleSwitchSlider:before { transform: translateX(18px); backgr
 #launch_details { position: relative; top: 25px; display: none; }
 #launch_details_left { display: flex; }
 #launch_progress_label { font-family: var(--mc-font); font-size: 13px; min-width: 55px; max-width: 55px; text-align: right; color: var(--mc-grass-bright); text-shadow: 1px 1px 0 var(--mc-grass-dark); }
-#launch_details_right { display: flex; flex-direction: column; justify-content: center; }
+
+/* FIX — espacement vertical entre la barre et le texte de statut */
+#launch_details_right {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+}
+
 #server_selection_button { background: none; border: none; outline: none; cursor: pointer; line-height: 24px; padding: 0; color: var(--text-dim); font-family: var(--mc-font); font-size: 7px; text-shadow: 1px 1px 0 #000; text-transform: uppercase; transition: none; }
 #server_selection_button:hover { color: var(--mc-gold); text-shadow: 1px 1px 0 #6b4a00; }
 #launch_progress[value] { height: 8px; width: 265px; -webkit-appearance: none; border-radius: 0; }
 #launch_progress[value]::-webkit-progress-bar { background: var(--panel-inset); border: 2px solid #111; box-shadow: inset 1px 1px 0 #000; }
 #launch_progress[value]::-webkit-progress-value { background: var(--mc-grass); box-shadow: inset -1px -1px 0 var(--mc-grass-dark), inset 1px 1px 0 var(--mc-grass-bright); }
-#launch_details_text { font-size: 7px; font-family: var(--mc-font); color: var(--text-dim); text-shadow: 1px 1px 0 #000; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
+
+/* FIX — texte de détail légèrement espacé de la barre */
+#launch_details_text { font-size: 7px; font-family: var(--mc-font); color: var(--text-dim); text-shadow: 1px 1px 0 #000; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; margin-top: 2px; }
 
 /* ============================================================
    OVERLAY VIEW
@@ -669,5 +679,13 @@ input:checked + .toggleSwitchSlider:before { transform: translateX(18px); backgr
 #loadSpinnerContainer { position: relative; display: flex; align-items: center; justify-content: center; }
 #loadCenterImage { position: absolute; width: 260px; height: auto; image-rendering: pixelated; }
 #loadSpinnerImage { width: 280px; height: auto; z-index: 400; image-rendering: pixelated; }
-@keyframes rotating { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-.rotating { animation: rotating 10s steps(36) infinite; }
+@keyframes rotating { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* FIX — accélération GPU pour le spinner, fluidité réelle */
+.rotating {
+    animation: rotating 10s steps(36) infinite;
+    will-change: transform;
+    transform-origin: center center;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
