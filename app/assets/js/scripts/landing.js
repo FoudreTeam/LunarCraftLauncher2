@@ -13,9 +13,7 @@ const {
     validateLocalFile
 }                             = require('helios-core/common')
 const {
-    FullRepair,
     DistributionIndexProcessor,
-    MojangIndexProcessor,
     downloadFile
 }                             = require('helios-core/dl')
 const {
@@ -30,6 +28,11 @@ const {
 // Internal Requirements
 const DiscordWrapper          = require('./assets/js/discordwrapper')
 const ProcessBuilder          = require('./assets/js/processbuilder')
+// Incremental download: only fetch files that changed on the server (or are missing/damaged).
+const {
+    SmartRepair,
+    SmartMojangIndexProcessor
+}                             = require('./assets/js/smartrepair')
 
 // Launch Elements
 const launch_content          = document.getElementById('launch_content')
@@ -478,7 +481,7 @@ async function dlAsync(login = true) {
     toggleLaunchArea(true)
     setLaunchPercentage(0, 100)
 
-    const fullRepairModule = new FullRepair(
+    const fullRepairModule = new SmartRepair(
         ConfigManager.getCommonDirectory(),
         ConfigManager.getInstanceDirectory(),
         ConfigManager.getLauncherDirectory(),
@@ -539,7 +542,7 @@ async function dlAsync(login = true) {
 
     setLaunchDetails(Lang.queryJS('landing.dlAsync.preparingToLaunch'))
 
-    const mojangIndexProcessor = new MojangIndexProcessor(
+    const mojangIndexProcessor = new SmartMojangIndexProcessor(
         ConfigManager.getCommonDirectory(),
         serv.rawServer.minecraftVersion)
     const distributionIndexProcessor = new DistributionIndexProcessor(
