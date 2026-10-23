@@ -9,7 +9,70 @@ const { fork } = require('child_process')
 const path = require('path')
 const { FullRepair } = require('helios-core/dl')
 
+/**
+ * Thrown by verifyFiles / download when the player cancels the launch.
+ */
+class LaunchCancelledError extends Error {
+    constructor() {
+        super('Launch cancelled by the user.')
+        this.name = 'LaunchCancelledError'
+    }
+}
+
 class SmartRepair extends FullRepair {
+
+    cancelled = false
+    rejectPending = null
+
+    verifyFiles(onProgress) {
+        return this.cancellable(() => super.verifyFiles(onProgress))
+    }
+
+    download(onProgress) {
+        return this.cancellable(() => super.download(onProgress))
+    }
+
+    cancellable(start) {
+        if(this.cancelled) {
+            return Promise.reject(new LaunchCancelledError())
+        }
+        return new Promise((resolve, reject) => {
+            this.rejectPending = reject
+            start().then(resolve, reject).finally(() => {
+                this.rejectPending = null
+            })
+        })
+    }
+
+    /**
+     * Stop the check/download right away. Files are downloaded to temporary
+     * files first, so stopping never leaves a broken mod in place.
+     */
+    cancel() {
+        if(this.cancelled) {
+            return
+        }
+        this.cancelled = true
+        const receiver = this.receiver
+        this.receiver = null
+        if(receiver != null) {
+            receiver.removeAllListeners('message')
+            try {
+                receiver.kill()
+            } catch (_err) {
+                // Already stopped.
+            }
+        }
+        if(this.rejectPending != null) {
+            this.rejectPending(new LaunchCancelledError())
+        }
+    }
+
+    destroyReceiver() {
+        if(this.receiver != null) {
+            super.destroyReceiver()
+        }
+    }
 
     spawnReceiver(additionalEnvVars) {
         if(this.receiver != null) {
@@ -33,4 +96,4 @@ class SmartRepair extends FullRepair {
     }
 }
 
-module.exports = { SmartRepair }
+module.exports = { SmartRepair, LaunchCancelledError }

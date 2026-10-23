@@ -13,6 +13,18 @@ files:
 extraResources:
   - 'libraries'
 
+# Durcissement du binaire Electron (empeche de detourner le launcher installe
+# pour executer du code via des variables d'environnement ou des arguments).
+electronFuses:
+  # Doit rester actif : le launcher utilise child_process.fork pour verifier
+  # et telecharger les fichiers du jeu.
+  runAsNode: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  onlyLoadAppFromAsar: true
+  # Les pages du launcher sont chargees en file://
+  grantFileProtocolExtraPrivileges: true
+
 # Windows Configuration
 win: 
   target: 

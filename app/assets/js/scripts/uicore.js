@@ -11,6 +11,9 @@ const remote                         = require('@electron/remote')
 const isDev                          = require('./assets/js/isdev')
 const { LoggerUtil }                 = require('helios-core')
 const Lang                           = require('./assets/js/langloader')
+// Security helpers, shared with the other view scripts.
+const { sanitizeHTML, escapeHTML, safeLinkURL, safeImageURL } = require('./assets/js/htmlsafety')
+const { openExternalSafe }           = require('./assets/js/urlsafety')
 
 const loggerUICore             = LoggerUtil.getLogger('UICore')
 const loggerAutoUpdater        = LoggerUtil.getLogger('AutoUpdater')
@@ -183,10 +186,8 @@ document.addEventListener('readystatechange', function () {
         //const targetWidth2 = document.getElementById("server_selection").getBoundingClientRect().width
         //const targetWidth3 = document.getElementById("launch_button").getBoundingClientRect().width
 
-        document.getElementById('launch_details').style.maxWidth = 266.01
-        document.getElementById('launch_progress').style.width = 170.8
-        document.getElementById('launch_details_right').style.maxWidth = 170.8
-        document.getElementById('launch_progress_label').style.width = 53.21
+        // Les tailles de la zone de lancement sont gérées par la feuille de style
+        // (les anciennes largeurs fixes coupaient les textes de statut).
         
     }
 
@@ -195,9 +196,16 @@ document.addEventListener('readystatechange', function () {
 /**
  * Open web links in the user's default browser.
  */
-$(document).on('click', 'a[href^="http"]', function(event) {
+$(document).on('click', 'a[href]', function(event) {
+    const href = this.getAttribute('href')
+    // In-page links (href="#...") are handled by the app itself.
+    if(href == null || href.startsWith('#')) {
+        return
+    }
+    // Never let a link navigate the launcher window: open web links in the
+    // browser, ignore everything else (file:, javascript:, custom protocols...).
     event.preventDefault()
-    shell.openExternal(this.href)
+    openExternalSafe(shell, this.href)
 })
 
 /**

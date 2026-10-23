@@ -638,19 +638,19 @@ function populateAuthAccounts(){
     authKeys.forEach((val) => {
         const acc = authAccounts[val]
 
-        const accHtml = `<div class="settingsAuthAccount" uuid="${acc.uuid}">
+        const accHtml = `<div class="settingsAuthAccount" uuid="${escapeHTML(acc.uuid)}">
             <div class="settingsAuthAccountLeft">
-                <img class="settingsAuthAccountImage" alt="${acc.displayName}" src="https://mc-heads.net/body/${acc.uuid}/60">
+                <img class="settingsAuthAccountImage" alt="${escapeHTML(acc.displayName)}" src="https://mc-heads.net/body/${encodeURIComponent(acc.uuid)}/60">
             </div>
             <div class="settingsAuthAccountRight">
                 <div class="settingsAuthAccountDetails">
                     <div class="settingsAuthAccountDetailPane">
                         <div class="settingsAuthAccountDetailTitle">${Lang.queryJS('settings.authAccountPopulate.username')}</div>
-                        <div class="settingsAuthAccountDetailValue">${acc.displayName}</div>
+                        <div class="settingsAuthAccountDetailValue">${escapeHTML(acc.displayName)}</div>
                     </div>
                     <div class="settingsAuthAccountDetailPane">
                         <div class="settingsAuthAccountDetailTitle">${Lang.queryJS('settings.authAccountPopulate.uuid')}</div>
-                        <div class="settingsAuthAccountDetailValue">${acc.uuid}</div>
+                        <div class="settingsAuthAccountDetailValue">${escapeHTML(acc.uuid)}</div>
                     </div>
                 </div>
                 <div class="settingsAuthAccountActions">
@@ -740,13 +740,13 @@ function parseModulesForUI(mdls, submodules, servConf){
 
             if(mdl.getRequired().value){
 
-                reqMods += `<div id="${mdl.getVersionlessMavenIdentifier()}" class="settingsBaseMod settings${submodules ? 'Sub' : ''}Mod" enabled>
+                reqMods += `<div id="${escapeHTML(mdl.getVersionlessMavenIdentifier())}" class="settingsBaseMod settings${submodules ? 'Sub' : ''}Mod" enabled>
                     <div class="settingsModContent">
                         <div class="settingsModMainWrapper">
                             <div class="settingsModStatus"></div>
                             <div class="settingsModDetails">
-                                <span class="settingsModName">${mdl.rawModule.name}</span>
-                                <span class="settingsModVersion">v${mdl.mavenComponents.version}</span>
+                                <span class="settingsModName">${escapeHTML(mdl.rawModule.name)}</span>
+                                <span class="settingsModVersion">v${escapeHTML(mdl.mavenComponents.version)}</span>
                             </div>
                         </div>
                         <label class="toggleSwitch" reqmod>
@@ -764,17 +764,17 @@ function parseModulesForUI(mdls, submodules, servConf){
                 const conf = servConf[mdl.getVersionlessMavenIdentifier()]
                 const val = typeof conf === 'object' ? conf.value : conf
 
-                optMods += `<div id="${mdl.getVersionlessMavenIdentifier()}" class="settingsBaseMod settings${submodules ? 'Sub' : ''}Mod" ${val ? 'enabled' : ''}>
+                optMods += `<div id="${escapeHTML(mdl.getVersionlessMavenIdentifier())}" class="settingsBaseMod settings${submodules ? 'Sub' : ''}Mod" ${val ? 'enabled' : ''}>
                     <div class="settingsModContent">
                         <div class="settingsModMainWrapper">
                             <div class="settingsModStatus"></div>
                             <div class="settingsModDetails">
-                                <span class="settingsModName">${mdl.rawModule.name}</span>
-                                <span class="settingsModVersion">v${mdl.mavenComponents.version}</span>
+                                <span class="settingsModName">${escapeHTML(mdl.rawModule.name)}</span>
+                                <span class="settingsModVersion">v${escapeHTML(mdl.mavenComponents.version)}</span>
                             </div>
                         </div>
                         <label class="toggleSwitch">
-                            <input type="checkbox" formod="${mdl.getVersionlessMavenIdentifier()}" ${val ? 'checked' : ''}>
+                            <input type="checkbox" formod="${escapeHTML(mdl.getVersionlessMavenIdentifier())}" ${val ? 'checked' : ''}>
                             <span class="toggleSwitchSlider"></span>
                         </label>
                     </div>
@@ -856,6 +856,11 @@ let CACHE_DROPIN_MODS
  * populate the results onto the UI.
  */
 async function resolveDropinModsForUI(){
+    // The drop-in mods section was removed from the settings: nothing to show.
+    if(document.getElementById('settingsDropinModsContent') == null){
+        CACHE_DROPIN_MODS = []
+        return
+    }
     const serv = (await DistroAPI.getDistribution()).getServerById(ConfigManager.getSelectedServer())
     CACHE_SETTINGS_MODS_DIR = path.join(ConfigManager.getInstanceDirectory(), serv.rawServer.id, 'mods')
     CACHE_DROPIN_MODS = DropinModUtil.scanForDropinMods(CACHE_SETTINGS_MODS_DIR, serv.rawServer.minecraftVersion)
@@ -863,19 +868,19 @@ async function resolveDropinModsForUI(){
     let dropinMods = ''
 
     for(dropin of CACHE_DROPIN_MODS){
-        dropinMods += `<div id="${dropin.fullName}" class="settingsBaseMod settingsDropinMod" ${!dropin.disabled ? 'enabled' : ''}>
+        dropinMods += `<div id="${escapeHTML(dropin.fullName)}" class="settingsBaseMod settingsDropinMod" ${!dropin.disabled ? 'enabled' : ''}>
                     <div class="settingsModContent">
                         <div class="settingsModMainWrapper">
                             <div class="settingsModStatus"></div>
                             <div class="settingsModDetails">
-                                <span class="settingsModName">${dropin.name}</span>
+                                <span class="settingsModName">${escapeHTML(dropin.name)}</span>
                                 <div class="settingsDropinRemoveWrapper">
-                                    <button class="settingsDropinRemoveButton" remmod="${dropin.fullName}">${Lang.queryJS('settings.dropinMods.removeButton')}</button>
+                                    <button class="settingsDropinRemoveButton" remmod="${escapeHTML(dropin.fullName)}">${Lang.queryJS('settings.dropinMods.removeButton')}</button>
                                 </div>
                             </div>
                         </div>
                         <label class="toggleSwitch">
-                            <input type="checkbox" formod="${dropin.fullName}" dropin ${!dropin.disabled ? 'checked' : ''}>
+                            <input type="checkbox" formod="${escapeHTML(dropin.fullName)}" dropin ${!dropin.disabled ? 'checked' : ''}>
                             <span class="toggleSwitchSlider"></span>
                         </label>
                     </div>
@@ -915,6 +920,9 @@ function bindDropinModsRemoveButton(){
  */
 function bindDropinModFileSystemButton(){
     const fsBtn = document.getElementById('settingsDropinFileSystemButton')
+    if(fsBtn == null){
+        return
+    }
     fsBtn.onclick = () => {
         DropinModUtil.validateDir(CACHE_SETTINGS_MODS_DIR)
         shell.openPath(CACHE_SETTINGS_MODS_DIR)
@@ -1008,14 +1016,14 @@ function setShadersOptions(arr, selected){
     cont.innerHTML = ''
     for(let opt of arr) {
         const d = document.createElement('DIV')
-        d.innerHTML = opt.name
+        d.textContent = opt.name
         d.setAttribute('value', opt.fullName)
         if(opt.fullName === selected) {
             d.setAttribute('selected', '')
-            document.getElementById('settingsShadersSelected').innerHTML = opt.name
+            document.getElementById('settingsShadersSelected').textContent = opt.name
         }
         d.addEventListener('click', function(e) {
-            this.parentNode.previousElementSibling.innerHTML = this.innerHTML
+            this.parentNode.previousElementSibling.textContent = this.textContent
             for(let sib of this.parentNode.children){
                 sib.removeAttribute('selected')
             }
@@ -1075,13 +1083,13 @@ async function loadSelectedServerOnModsTab(){
 
     for(const el of document.getElementsByClassName('settingsSelServContent')) {
         el.innerHTML = `
-            <img class="serverListingImg" src="${serv.rawServer.icon}"/>
+            <img class="serverListingImg" src="${escapeHTML(safeImageURL(serv.rawServer.icon))}"/>
             <div class="serverListingDetails">
-                <span class="serverListingName">${serv.rawServer.name}</span>
-                <span class="serverListingDescription">${serv.rawServer.description}</span>
+                <span class="serverListingName">${sanitizeHTML(serv.rawServer.name)}</span>
+                <span class="serverListingDescription">${sanitizeHTML(serv.rawServer.description)}</span>
                 <div class="serverListingInfo">
-                    <div class="serverListingVersion">${serv.rawServer.minecraftVersion}</div>
-                    <div class="serverListingRevision">${serv.rawServer.version}</div>
+                    <div class="serverListingVersion">${escapeHTML(serv.rawServer.minecraftVersion)}</div>
+                    <div class="serverListingRevision">${escapeHTML(serv.rawServer.version)}</div>
                     ${serv.rawServer.mainServer ? `<div class="serverListingStarWrapper">
                         <svg id="Layer_1" viewBox="0 0 107.45 104.74" width="20px" height="20px">
                             <defs>
@@ -1169,9 +1177,9 @@ settingsMinRAMRange.onchange = (e) => {
 
     // Change range bar color based on the selected value.
     if(sMinV >= max/2){
-        bar.style.background = '#e86060'
+        bar.style.background = '#ff8a9a'
     } else if(sMinV >= max/4) {
-        bar.style.background = '#e8e18b'
+        bar.style.background = '#f6d47a'
     } else {
         bar.style.background = null
     }
@@ -1201,9 +1209,9 @@ settingsMaxRAMRange.onchange = (e) => {
 
     // Change range bar color based on the selected value.
     if(sMaxV >= max/2){
-        bar.style.background = '#e86060'
+        bar.style.background = '#ff8a9a'
     } else if(sMaxV >= max/4) {
-        bar.style.background = '#e8e18b'
+        bar.style.background = '#f6d47a'
     } else {
         bar.style.background = null
     }
@@ -1453,7 +1461,7 @@ function populateAboutVersionInformation(){
  */
 function populateReleaseNotes(){
     $.ajax({
-        url: 'https://github.com/dscalzi/HeliosLauncher/releases.atom',
+        url: 'https://github.com/FoudreTeam/LunarCraftLauncher2/releases.atom',
         success: (data) => {
             const version = 'v' + remote.app.getVersion()
             const entries = $(data).find('entry')
@@ -1464,9 +1472,9 @@ function populateReleaseNotes(){
                 id = id.substring(id.lastIndexOf('/')+1)
 
                 if(id === version){
-                    settingsAboutChangelogTitle.innerHTML = entry.find('title').text()
-                    settingsAboutChangelogText.innerHTML = entry.find('content').text()
-                    settingsAboutChangelogButton.href = entry.find('link').attr('href')
+                    settingsAboutChangelogTitle.textContent = entry.find('title').text()
+                    settingsAboutChangelogText.innerHTML = sanitizeHTML(entry.find('content').text())
+                    settingsAboutChangelogButton.href = safeLinkURL(entry.find('link').attr('href'))
                 }
             }
 
@@ -1523,13 +1531,13 @@ function populateSettingsUpdateInformation(data){
     if(data != null){
         settingsUpdateTitle.innerHTML = isPrerelease(data.version) ? Lang.queryJS('settings.updates.newPreReleaseTitle') : Lang.queryJS('settings.updates.newReleaseTitle')
         settingsUpdateChangelogCont.style.display = null
-        settingsUpdateChangelogTitle.innerHTML = data.releaseName
-        settingsUpdateChangelogText.innerHTML = data.releaseNotes
+        settingsUpdateChangelogTitle.textContent = data.releaseName
+        settingsUpdateChangelogText.innerHTML = sanitizeHTML(data.releaseNotes)
         populateVersionInformation(data.version, settingsUpdateVersionValue, settingsUpdateVersionTitle, settingsUpdateVersionCheck)
         
         if(process.platform === 'darwin'){
             settingsUpdateButtonStatus(Lang.queryJS('settings.updates.downloadButton'), false, () => {
-                shell.openExternal(data.darwindownload)
+                openExternalSafe(shell, data.darwindownload)
             })
         } else {
             settingsUpdateButtonStatus(Lang.queryJS('settings.updates.downloadingButton'), true)

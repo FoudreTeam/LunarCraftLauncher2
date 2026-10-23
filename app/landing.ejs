@@ -141,19 +141,24 @@
         <div id="right">
             <div class="bot_wrapper">
                 <div id="launch_content">
-                    <button id="launch_button"><%- lang('landing.launchButton') %></button>
-                    <div class="bot_divider"></div>
                     <button id="server_selection_button" class="bot_label"><%- lang('landing.launchButtonPlaceholder') %></button>
                 </div>
                 <div id="launch_details">
                     <div id="launch_details_left">
                         <span id="launch_progress_label">0%</span>
-                        <div class="bot_divider"></div>
                     </div>
                     <div id="launch_details_right">
                         <progress id="launch_progress" value="22" max="100"></progress>
                         <span id="launch_details_text" class="bot_label"><%- lang('landing.launchDetails') %></span>
+                        <button id="launch_cancel_button" hidden><%- lang('landing.launchCancelButton') %></button>
                     </div>
+                </div>
+                <!-- La lune : bouton Jouer, et barre de progression pendant le lancement (elle se remplit comme une phase de lune). -->
+                <div id="launch_moon">
+                    <div id="launch_moon_disc" aria-hidden="true">
+                        <div id="launch_moon_shadow"></div>
+                    </div>
+                    <button id="launch_button"><%- lang('landing.launchButton') %></button>
                 </div>
             </div>
         </div>

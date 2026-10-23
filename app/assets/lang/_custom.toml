@@ -4,10 +4,10 @@
 title = "LunarCraft Launcher"
 
 [ejs.landing]
-mediaGitHubURL = "https://github.com/foudreteam/LunarCraftLauncher2"
-mediaXURL = "#"
-mediaInstagramURL = "#"
-mediaYouTubeURL = "#"
+mediaGitHubURL = "https://foudremagic.fr/lunarcraft"
+mediaXURL = "https://x.com/foudremagic"
+mediaInstagramURL = "https://www.instagram.com/foudremagic"
+mediaYouTubeURL = "https://youtube.com/@Foudremagic"
 mediaDiscordURL = "https://discord.foudremagic.fr"
 
 [ejs.settings]

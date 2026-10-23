@@ -31,6 +31,7 @@ const ProcessBuilder          = require('./assets/js/processbuilder')
 // Incremental download: only fetch files that changed on the server (or are missing/damaged).
 const {
     SmartRepair,
+    LaunchCancelledError,
     SmartMojangIndexProcessor
 }                             = require('./assets/js/smartrepair')
 
@@ -52,7 +53,41 @@ const loggerLanding = LoggerUtil.getLogger('Landing')
  * 
  * @param {boolean} loading True if the loading area should be shown, otherwise false.
  */
+/* Launch cancellation */
+
+let launchCancelled = false
+let launchCancellable = false
+let activeRepair = null
+
+/**
+ * Show or hide the cancel button. Some steps (Java download and extraction,
+ * starting the game process) must not be interrupted.
+ */
+function setLaunchCancellable(val){
+    launchCancellable = val
+    document.getElementById('launch_cancel_button').hidden = !val
+}
+
+function cancelLaunch(){
+    if(!launchCancellable || launchCancelled){
+        return
+    }
+    launchCancelled = true
+    loggerLanding.info('Launch cancelled by the user.')
+    if(activeRepair != null){
+        activeRepair.cancel()
+        activeRepair = null
+    }
+    setLaunchCancellable(false)
+    remote.getCurrentWindow().setProgressBar(-1)
+    toggleLaunchArea(false)
+}
+
+document.getElementById('launch_cancel_button').addEventListener('click', cancelLaunch)
+
 function toggleLaunchArea(loading){
+    // Used by the stylesheet: the moon turns into the progress indicator.
+    document.getElementById('landingContainer').toggleAttribute('launching', loading)
     if(loading){
         launch_details.style.display = 'flex'
         launch_content.style.display = 'none'
@@ -80,6 +115,8 @@ function setLaunchPercentage(percent){
     launch_progress.setAttribute('max', 100)
     launch_progress.setAttribute('value', percent)
     launch_progress_label.innerHTML = percent + '%'
+    // Moon phase: 0 = new moon, 100 = full moon.
+    document.getElementById('landingContainer').style.setProperty('--launch-progress', Math.max(0, Math.min(100, Number(percent) || 0)))
 }
 
 /**
@@ -104,6 +141,8 @@ function setLaunchEnabled(val){
 // Bind launch button
 document.getElementById('launch_button').addEventListener('click', async e => {
     loggerLanding.info('Launching game..')
+    launchCancelled = false
+    setLaunchCancellable(true)
     try {
         const server = (await DistroAPI.getDistribution()).getServerById(ConfigManager.getSelectedServer())
         const jExe = ConfigManager.getJavaExecutable(ConfigManager.getSelectedServer())
@@ -116,6 +155,9 @@ document.getElementById('launch_button').addEventListener('click', async e => {
             setLaunchPercentage(0, 100)
 
             const details = await validateSelectedJvm(ensureJavaDirIsRoot(jExe), server.effectiveJavaOptions.supported)
+            if(launchCancelled){
+                return
+            }
             if(details != null){
                 loggerLanding.info('Jvm Details', details)
                 await dlAsync()
@@ -155,7 +197,7 @@ function updateSelectedAccount(authUser){
             document.getElementById('avatarContainer').style.backgroundImage = `url('https://mc-heads.net/body/${authUser.uuid}/right')`
         }
     }
-    user_text.innerHTML = username
+    user_text.textContent = username
 }
 updateSelectedAccount(ConfigManager.getSelectedAccount())
 
@@ -166,7 +208,7 @@ function updateSelectedServer(serv){
     }
     ConfigManager.setSelectedServer(serv != null ? serv.rawServer.id : null)
     ConfigManager.save()
-    server_selection_button.innerHTML = '&#8226; ' + (serv != null ? serv.rawServer.name : Lang.queryJS('landing.noSelection'))
+    server_selection_button.innerHTML = '&#8226; ' + (serv != null ? escapeHTML(serv.rawServer.name) : Lang.queryJS('landing.selectedServer.noSelection'))
     if(getCurrentView() === VIEWS.settings){
         animateSettingsTabRefresh()
     }
@@ -244,6 +286,7 @@ const refreshServerStatus = async (fade = false) => {
 
     let pLabel = Lang.queryJS('landing.serverStatus.server')
     let pVal = Lang.queryJS('landing.serverStatus.offline')
+    let online = false
 
     try {
 
@@ -251,11 +294,13 @@ const refreshServerStatus = async (fade = false) => {
         console.log(servStat)
         pLabel = Lang.queryJS('landing.serverStatus.players')
         pVal = servStat.players.online + '/' + servStat.players.max
+        online = true
 
     } catch (err) {
         loggerLanding.warn('Unable to refresh server status, assuming offline.')
         loggerLanding.debug(err)
     }
+    document.getElementById('server_status_wrapper').toggleAttribute('online', online)
     if(fade){
         $('#server_status_wrapper').fadeOut(250, () => {
             document.getElementById('landingPlayerLabel').innerHTML = pLabel
@@ -312,7 +357,13 @@ async function asyncSystemScan(effectiveJavaOptions, launchAfter = true){
         effectiveJavaOptions.supported
     )
 
+    if(launchCancelled){
+        return
+    }
+
     if(jvmDetails == null) {
+        // The player now chooses what to do in a dialog.
+        setLaunchCancellable(false)
         // If the result is null, no valid Java installation was found.
         // Show this information to the user.
         setOverlayContent(
@@ -375,6 +426,9 @@ async function asyncSystemScan(effectiveJavaOptions, launchAfter = true){
 }
 
 async function downloadJava(effectiveJavaOptions, launchAfter = true) {
+
+    // Interrupting the Java download or extraction would leave a broken install.
+    setLaunchCancellable(false)
 
     // TODO Error handling.
     // asset can be null.
@@ -455,6 +509,11 @@ async function dlAsync(login = true) {
 
     const loggerLaunchSuite = LoggerUtil.getLogger('LaunchSuite')
 
+    if(launchCancelled){
+        return
+    }
+    setLaunchCancellable(true)
+
     setLaunchDetails(Lang.queryJS('landing.dlAsync.loadingServerInfo'))
 
     let distro
@@ -465,6 +524,9 @@ async function dlAsync(login = true) {
     } catch(err) {
         loggerLaunchSuite.error('Unable to refresh distribution index.', err)
         showLaunchFailure(Lang.queryJS('landing.dlAsync.fatalError'), Lang.queryJS('landing.dlAsync.unableToLoadDistributionIndex'))
+        return
+    }
+    if(launchCancelled){
         return
     }
 
@@ -490,13 +552,17 @@ async function dlAsync(login = true) {
     )
 
     fullRepairModule.spawnReceiver()
+    activeRepair = fullRepairModule
 
     fullRepairModule.childProcess.on('error', (err) => {
+        if(launchCancelled){
+            return
+        }
         loggerLaunchSuite.error('Error during launch', err)
         showLaunchFailure(Lang.queryJS('landing.dlAsync.errorDuringLaunchTitle'), err.message || Lang.queryJS('landing.dlAsync.errorDuringLaunchText'))
     })
     fullRepairModule.childProcess.on('close', (code, _signal) => {
-        if(code !== 0){
+        if(code !== 0 && !launchCancelled){
             loggerLaunchSuite.error(`Full Repair Module exited with code ${code}, assuming error.`)
             showLaunchFailure(Lang.queryJS('landing.dlAsync.errorDuringLaunchTitle'), Lang.queryJS('landing.dlAsync.seeConsoleForDetails'))
         }
@@ -511,6 +577,9 @@ async function dlAsync(login = true) {
         })
         setLaunchPercentage(100)
     } catch (err) {
+        if(launchCancelled || err instanceof LaunchCancelledError){
+            return
+        }
         loggerLaunchSuite.error('Error during file validation.')
         showLaunchFailure(Lang.queryJS('landing.dlAsync.errorDuringFileVerificationTitle'), err.displayable || Lang.queryJS('landing.dlAsync.seeConsoleForDetails'))
         return
@@ -527,6 +596,9 @@ async function dlAsync(login = true) {
             })
             setDownloadPercentage(100)
         } catch(err) {
+            if(launchCancelled || err instanceof LaunchCancelledError){
+                return
+            }
             loggerLaunchSuite.error('Error during file download.')
             showLaunchFailure(Lang.queryJS('landing.dlAsync.errorDuringFileDownloadTitle'), err.displayable || Lang.queryJS('landing.dlAsync.seeConsoleForDetails'))
             return
@@ -535,10 +607,15 @@ async function dlAsync(login = true) {
         loggerLaunchSuite.info('No invalid files, skipping download.')
     }
 
+    if(launchCancelled){
+        return
+    }
+
     // Remove download bar.
     remote.getCurrentWindow().setProgressBar(-1)
 
     fullRepairModule.destroyReceiver()
+    activeRepair = null
 
     setLaunchDetails(Lang.queryJS('landing.dlAsync.preparingToLaunch'))
 
@@ -553,6 +630,12 @@ async function dlAsync(login = true) {
 
     const modLoaderData = await distributionIndexProcessor.loadModLoaderVersionJson(serv)
     const versionData = await mojangIndexProcessor.getVersionJson()
+
+    if(launchCancelled){
+        return
+    }
+    // From here the game process starts: it can no longer be cancelled.
+    setLaunchCancellable(false)
 
     if(login) {
         const authUser = ConfigManager.getSelectedAccount()
@@ -938,13 +1021,15 @@ document.addEventListener('keydown', (e) => {
  * @param {number} index The article index.
  */
 function displayArticle(articleObject, index){
-    newsArticleTitle.innerHTML = articleObject.title
-    newsArticleTitle.href = articleObject.link
-    newsArticleAuthor.innerHTML = 'by ' + articleObject.author
-    newsArticleDate.innerHTML = articleObject.date
-    newsArticleComments.innerHTML = articleObject.comments
-    newsArticleComments.href = articleObject.commentsLink
-    newsArticleContentScrollable.innerHTML = '<div id="newsArticleContentWrapper"><div class="newsArticleSpacerTop"></div>' + articleObject.content + '<div class="newsArticleSpacerBot"></div></div>'
+    // The news feed comes from the network: text fields are displayed as text,
+    // links must be http(s) and the article body is sanitized.
+    newsArticleTitle.textContent = articleObject.title
+    newsArticleTitle.href = safeLinkURL(articleObject.link)
+    newsArticleAuthor.textContent = 'par ' + articleObject.author
+    newsArticleDate.textContent = articleObject.date
+    newsArticleComments.textContent = articleObject.comments
+    newsArticleComments.href = safeLinkURL(articleObject.commentsLink)
+    newsArticleContentScrollable.innerHTML = '<div id="newsArticleContentWrapper"><div class="newsArticleSpacerTop"></div>' + sanitizeHTML(articleObject.content) + '<div class="newsArticleSpacerBot"></div></div>'
     Array.from(newsArticleContentScrollable.getElementsByClassName('bbCodeSpoilerButton')).forEach(v => {
         v.onclick = () => {
             const text = v.parentElement.getElementsByClassName('bbCodeSpoilerText')[0]

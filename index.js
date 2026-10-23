@@ -2,7 +2,7 @@ const remoteMain = require('@electron/remote/main')
 remoteMain.initialize()
 
 // Requirements
-const { app, BrowserWindow, ipcMain, Menu, shell } = require('electron')
+const { app, BrowserWindow, ipcMain, Menu, session, shell } = require('electron')
 const autoUpdater                       = require('electron-updater').autoUpdater
 const ejse                              = require('ejs-electron')
 const fs                                = require('fs')
@@ -12,9 +12,76 @@ const semver                            = require('semver')
 const { pathToFileURL }                 = require('url')
 const { AZURE_CLIENT_ID, MSFT_OPCODE, MSFT_REPLY_TYPE, MSFT_ERROR, SHELL_OPCODE } = require('./app/assets/js/ipcconstants')
 const LangLoader                        = require('./app/assets/js/langloader')
+const { openExternalSafe }              = require('./app/assets/js/urlsafety')
 
 // Setup Lang
 LangLoader.setupLanguage()
+
+/* ------------------------------------------------------------------------
+ * Security hardening
+ *
+ * The launcher window runs with Node.js integration. If it were ever made to
+ * display a remote web page (injected link, redirect, window.open...), that
+ * page would get full access to the player's computer. The rules below make
+ * sure the launcher window can only ever show the launcher itself.
+ * ---------------------------------------------------------------------- */
+const APP_ENTRY_URL = pathToFileURL(path.join(__dirname, 'app', 'app.ejs')).toString()
+
+function isLauncherWindow(contents) {
+    return win != null && !win.isDestroyed() && contents === win.webContents
+}
+
+function isAllowedNavigation(contents, url) {
+    if(url.startsWith('devtools://')) {
+        return true
+    }
+    if(isLauncherWindow(contents)) {
+        // Only the launcher page itself (reloads included).
+        return url.split('#')[0] === APP_ENTRY_URL
+    }
+    // Microsoft login/logout windows (no Node.js access): HTTPS only.
+    return url.startsWith('https://')
+}
+
+app.on('web-contents-created', (_event, contents) => {
+    // window.open / target="_blank": never create a new Electron window.
+    contents.setWindowOpenHandler(({ url }) => {
+        openExternalSafe(shell, url)
+        return { action: 'deny' }
+    })
+
+    // <webview> is never used by the launcher.
+    contents.on('will-attach-webview', (event) => {
+        event.preventDefault()
+    })
+
+    const guardNavigation = (event, url) => {
+        if(isAllowedNavigation(contents, url)) {
+            return
+        }
+        event.preventDefault()
+        console.warn(`Blocked navigation to ${url}`)
+        if(isLauncherWindow(contents)) {
+            // A web link clicked in the launcher: open it in the browser instead.
+            openExternalSafe(shell, url)
+        }
+    }
+    contents.on('will-navigate', guardNavigation)
+    contents.on('will-redirect', guardNavigation)
+})
+
+app.on('ready', () => {
+    // The launcher page needs no special browser permission (camera,
+    // microphone, location, notifications...). Login windows keep the
+    // default behavior so Microsoft sign-in keeps working.
+    session.defaultSession.setPermissionRequestHandler((contents, permission, callback) => {
+        if(isLauncherWindow(contents)) {
+            callback(permission === 'clipboard-sanitized-write')
+        } else {
+            callback(true)
+        }
+    })
+})
 
 // Setup auto updater.
 function initAutoUpdater(event, data) {
@@ -148,8 +215,8 @@ ipcMain.on(MSFT_OPCODE.OPEN_LOGIN, (ipcEvent, ...arguments_) => {
             let queryMap = {}
             
             new URL(uri).searchParams.forEach((v, k) => {
-                queryMap[k] = v;
-            });
+                queryMap[k] = v
+            })
 
             ipcEvent.reply(MSFT_OPCODE.REPLY_LOGIN, MSFT_REPLY_TYPE.SUCCESS, queryMap, msftAuthViewSuccess)
 
