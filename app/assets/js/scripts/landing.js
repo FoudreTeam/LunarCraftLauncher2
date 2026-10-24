@@ -1058,6 +1058,9 @@ async function loadNews(){
         const newsHost = new URL(newsFeed).origin + '/'
         $.ajax({
             url: newsFeed,
+            // Always fetch the latest feed: without this, Chromium may reuse a
+            // copy kept in its cache for days and new announcements never show.
+            cache: false,
             success: (data) => {
                 const items = $(data).find('item')
                 const articles = []
@@ -1067,11 +1070,11 @@ async function loadNews(){
                     const el = $(items[i])
 
                     // Resolve date.
-                    const date = new Date(el.find('pubDate').text()).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric'})
+                    const date = new Date(el.find('pubDate').text()).toLocaleDateString('fr-FR', {day: 'numeric', month: 'long', year: 'numeric'})
 
                     // Resolve comments.
                     let comments = el.find('slash\\:comments').text() || '0'
-                    comments = comments + ' Comment' + (comments === '1' ? '' : 's')
+                    comments = comments + ' commentaire' + (Number(comments) > 1 ? 's' : '')
 
                     // Fix relative links in content.
                     let content = el.find('content\\:encoded').text()

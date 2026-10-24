@@ -2,7 +2,7 @@ appId: 'lunarcraftlauncher'
 productName: 'LunarCraft-Launcher'
 artifactName: '${productName}-setup-${version}.${ext}'
 
-copyright: 'Copyright © 2023-2026 FoudreTeam'
+copyright: 'LunarCraft © 2023-2026 FoudreTeam, Foudremagic - All Rights Reserved.'
 
 asar: true
 compression: 'maximum'

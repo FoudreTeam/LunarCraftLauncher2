@@ -15,6 +15,6 @@ sourceGithubLink = "https://github.com/foudreteam/LunarCraftLauncher2"
 supportLink = "https://github.com/foudreteam/LunarCraftLauncher2/issues"
 
 [ejs.welcome]
-welcomeHeader = "BIENVENUE SUR LUNARCRAFT!"
-welcomeDescription = "Server Survie Moddé"
+welcomeHeader = "Bienvenue sur LunarCraft !"
+welcomeDescription = "Serveur survie moddé"
 welcomeDescCTA = "Launcher toujours en reconstruction."

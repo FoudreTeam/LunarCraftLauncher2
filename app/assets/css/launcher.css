@@ -24,7 +24,7 @@
     --moonlight:      #fff3cf;
     --lavender:       #b598ff;
     --mist:           #cfc8ee;
-    --font-display:   'Pixelify Sans', 'Quicksand', sans-serif;
+    --font-display:   'Fredoka', 'Quicksand', sans-serif;
     --font-ui:        'Quicksand', 'Segoe UI', sans-serif;
 
     /* Anciens noms, conservés pour le reste de la feuille et remappés sur le thème. */
@@ -713,8 +713,9 @@ input:checked + .toggleSwitchSlider:before { transform: translateX(18px); backgr
    Une seule pièce maîtresse : la lune, qui sert de bouton Jouer et
    se remplit comme une phase lunaire pendant le téléchargement.
    ============================================================ */
-@font-face { font-family: 'Pixelify Sans'; src: url('../fonts/pixelify-sans-latin-500-normal.woff2') format('woff2'); font-weight: 500; font-display: block; }
-@font-face { font-family: 'Pixelify Sans'; src: url('../fonts/pixelify-sans-latin-700-normal.woff2') format('woff2'); font-weight: 700; font-display: block; }
+@font-face { font-family: 'Fredoka'; src: url('../fonts/fredoka-latin-500-normal.woff2') format('woff2'); font-weight: 500; font-display: block; }
+@font-face { font-family: 'Fredoka'; src: url('../fonts/fredoka-latin-600-normal.woff2') format('woff2'); font-weight: 600; font-display: block; }
+@font-face { font-family: 'Fredoka'; src: url('../fonts/fredoka-latin-700-normal.woff2') format('woff2'); font-weight: 700; font-display: block; }
 @font-face { font-family: 'Quicksand'; src: url('../fonts/quicksand-latin-500-normal.woff2') format('woff2'); font-weight: 500; font-display: block; }
 @font-face { font-family: 'Quicksand'; src: url('../fonts/quicksand-latin-600-normal.woff2') format('woff2'); font-weight: 600; font-display: block; }
 @font-face { font-family: 'Quicksand'; src: url('../fonts/quicksand-latin-700-normal.woff2') format('woff2'); font-weight: 700; font-display: block; }
@@ -727,7 +728,7 @@ input:checked + .toggleSwitchSlider:before { transform: translateX(18px); backgr
     --moonlight: #fff3cf;
     --lavender: #b598ff;
     --mist: #cfc8ee;
-    --font-display: 'Pixelify Sans', var(--mc-font);
+    --font-display: 'Fredoka', var(--font-ui);
     --font-ui: 'Quicksand', 'Segoe UI', sans-serif;
     --edge: 32px;
     --moon-size: 128px;
@@ -1343,6 +1344,15 @@ input:checked + .toggleSwitchSlider:before { transform: translateX(18px); backgr
     color: var(--moonlight);
 }
 .loginOptionButton:focus-visible { outline: 2px solid var(--lavender); outline-offset: 3px; }
+
+#loginOptionsContent h2 { margin-bottom: 8px; }
+#loginOptionsDesc {
+    max-width: 300px;
+    margin: 0 0 22px;
+    text-align: center;
+    font: 500 14px/1.5 var(--font-ui);
+    color: var(--mist);
+}
 
 /* ---------- Attente (connexion Microsoft) ---------- */
 #waitingTextContainer { font: 600 15px/1.4 var(--font-ui); color: var(--mist); text-shadow: none; }

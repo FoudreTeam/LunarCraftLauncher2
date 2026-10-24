@@ -36,7 +36,8 @@ loginPasswordDisclaimer1 = "Votre mot de passe est envoyé directement à Mojang
 loginPasswordDisclaimer2 = "{appName} n'est pas affilié à Mojang AB."
 
 [ejs.loginOptions]
-loginOptionsTitle = "Options de connexion"
+loginOptionsTitle = "Connexion"
+loginOptionsDesc = "Connectez-vous avec le compte Microsoft qui possède Minecraft Java Edition."
 loginWithMicrosoft = "Se connecter avec Microsoft"
 loginWithMojang = "Se connecter avec Mojang"
 cancelButton = "Annuler"

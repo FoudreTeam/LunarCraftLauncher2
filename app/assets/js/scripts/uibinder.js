@@ -17,7 +17,6 @@ let fatalStartupError = false
 const VIEWS = {
     landing: '#landingContainer',
     loginOptions: '#loginOptionsContainer',
-    login: '#loginContainer',
     settings: '#settingsContainer',
     welcome: '#welcomeContainer',
     waiting: '#waitingContainer'
@@ -57,7 +56,23 @@ function getCurrentView(){
     return currentView
 }
 
+/**
+ * Mojang accounts have not worked for years (all accounts were migrated to
+ * Microsoft). Remove any left in the config so nobody gets stuck on them.
+ */
+function removeObsoleteMojangAccounts(){
+    const accounts = ConfigManager.getAuthAccounts()
+    const obsolete = Object.keys(accounts).filter(uuid => accounts[uuid].type !== 'microsoft')
+    if(obsolete.length > 0){
+        obsolete.forEach(uuid => ConfigManager.removeAuthAccount(uuid))
+        ConfigManager.save()
+        loggerUICore.info(`Removed ${obsolete.length} obsolete Mojang account(s).`)
+    }
+}
+
 async function showMainUI(data){
+
+    removeObsoleteMojangAccounts()
 
     if(!isDev){
         loggerAutoUpdater.info('Initializing..')
@@ -341,36 +356,21 @@ async function validateSelectedAccount(){
             )
             setOverlayHandler(() => {
 
-                const isMicrosoft = selectedAcc.type === 'microsoft'
-
-                if(isMicrosoft) {
-                    // Empty for now
-                } else {
-                    // Mojang
-                    // For convenience, pre-populate the username of the account.
-                    document.getElementById('loginUsername').value = selectedAcc.username
-                    validateEmail(selectedAcc.username)
-                }
-                
                 loginOptionsViewOnLoginSuccess = getCurrentView()
                 loginOptionsViewOnLoginCancel = VIEWS.loginOptions
 
                 if(accLen > 0) {
                     loginOptionsViewOnCancel = getCurrentView()
                     loginOptionsViewCancelHandler = () => {
-                        if(isMicrosoft) {
-                            ConfigManager.addMicrosoftAuthAccount(
-                                selectedAcc.uuid,
-                                selectedAcc.accessToken,
-                                selectedAcc.username,
-                                selectedAcc.expiresAt,
-                                selectedAcc.microsoft.access_token,
-                                selectedAcc.microsoft.refresh_token,
-                                selectedAcc.microsoft.expires_at
-                            )
-                        } else {
-                            ConfigManager.addMojangAuthAccount(selectedAcc.uuid, selectedAcc.accessToken, selectedAcc.username, selectedAcc.displayName)
-                        }
+                        ConfigManager.addMicrosoftAuthAccount(
+                            selectedAcc.uuid,
+                            selectedAcc.accessToken,
+                            selectedAcc.username,
+                            selectedAcc.expiresAt,
+                            selectedAcc.microsoft.access_token,
+                            selectedAcc.microsoft.refresh_token,
+                            selectedAcc.microsoft.expires_at
+                        )
                         ConfigManager.save()
                         validateSelectedAccount()
                     }
