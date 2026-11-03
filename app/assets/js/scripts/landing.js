@@ -22,7 +22,8 @@ const {
     javaExecFromRoot,
     discoverBestJvmInstallation,
     latestOpenJDK,
-    extractJdk
+    extractJdk,
+    getLauncherRuntimeDir
 }                             = require('helios-core/java')
 
 // Internal Requirements
@@ -492,6 +493,158 @@ async function downloadJava(effectiveJavaOptions, launchAfter = true) {
 
 }
 
+/* Game crash: offer the Java distributed by the launcher */
+
+/**
+ * Is this Java executable one the launcher downloaded itself
+ * (inside <data directory>/runtime)?
+ */
+function isLauncherManagedJava(javaExec){
+    if(javaExec == null){
+        return false
+    }
+    const runtimeDir = path.resolve(getLauncherRuntimeDir(ConfigManager.getDataDirectory())) + path.sep
+    return path.resolve(javaExec).toLowerCase().startsWith(runtimeDir.toLowerCase())
+}
+
+/**
+ * Look for a Java already downloaded by the launcher that suits the server.
+ *
+ * @returns {Promise<string|null>} Path to the java executable, or null.
+ */
+async function findLauncherJava(effectiveJavaOptions){
+    const fse = require('fs-extra')
+    const runtimeDir = getLauncherRuntimeDir(ConfigManager.getDataDirectory())
+    let entries
+    try {
+        entries = await fse.readdir(runtimeDir, { withFileTypes: true })
+    } catch (_err) {
+        return null
+    }
+    for(const entry of entries){
+        const root = path.join(runtimeDir, entry.name)
+        try {
+            // Follows links too (fs.Dirent.isDirectory() does not).
+            if(!(await fse.stat(root)).isDirectory()){
+                continue
+            }
+            if(await validateSelectedJvm(root, effectiveJavaOptions.supported) != null){
+                return javaExecFromRoot(root)
+            }
+        } catch (_err) {
+            // Not a usable Java installation, keep looking.
+        }
+    }
+    return null
+}
+
+/**
+ * Switch the server to the launcher's own Java, downloading it if needed.
+ * Unlike downloadJava(), this never falls back to a Java found on the system.
+ */
+async function useLauncherJava(serv){
+    const effectiveJavaOptions = serv.effectiveJavaOptions
+    setLaunchCancellable(false)
+    toggleLaunchArea(true)
+    setLaunchPercentage(0)
+    setLaunchDetails(Lang.queryJS('landing.systemScan.javaDownloadPrepare'))
+
+    let javaExec = await findLauncherJava(effectiveJavaOptions)
+
+    if(javaExec == null){
+        const asset = await latestOpenJDK(
+            effectiveJavaOptions.suggestedMajor,
+            ConfigManager.getDataDirectory(),
+            effectiveJavaOptions.distribution)
+        if(asset == null){
+            throw new Error(Lang.queryJS('landing.downloadJava.findJdkFailure'))
+        }
+
+        await downloadFile(asset.url, asset.path, ({ transferred }) => {
+            setDownloadPercentage(Math.trunc((transferred/asset.size)*100))
+        })
+        setDownloadPercentage(100)
+        if(!await validateLocalFile(asset.path, asset.algo, asset.hash)){
+            throw new Error(Lang.queryJS('landing.downloadJava.javaDownloadCorruptedError'))
+        }
+
+        remote.getCurrentWindow().setProgressBar(2)
+        setLaunchDetails(Lang.queryJS('landing.downloadJava.extractingJava'))
+        javaExec = await extractJdk(asset.path)
+        remote.getCurrentWindow().setProgressBar(-1)
+    }
+
+    ConfigManager.setJavaExecutable(serv.rawServer.id, javaExec)
+    ConfigManager.save()
+    loggerLanding.info(`Now using the launcher's Java: ${javaExec}`)
+
+    // Keep the settings screen in sync, in case it is open.
+    if(serv.rawServer.id === ConfigManager.getSelectedServer()){
+        settingsJavaExecVal.value = javaExec
+        await populateJavaExecDetails(javaExec)
+    }
+
+    toggleLaunchArea(false)
+}
+
+/**
+ * Called when Minecraft exits with an error code.
+ */
+function onGameCrash(serv, code){
+    toggleLaunchArea(false)
+
+    const currentJava = ConfigManager.getJavaExecutable(serv.rawServer.id)
+    if(isLauncherManagedJava(currentJava)){
+        // Already on the launcher's Java: switching would change nothing.
+        loggerLanding.info('Game crashed while using the launcher\'s Java, nothing to offer.')
+        return
+    }
+
+    const win = remote.getCurrentWindow()
+    if(win.isMinimized()){
+        win.restore()
+    }
+    win.focus()
+
+    setOverlayContent(
+        Lang.queryJS('landing.gameCrash.title'),
+        Lang.queryJS('landing.gameCrash.message', { code }),
+        Lang.queryJS('landing.gameCrash.useLauncherJava'),
+        Lang.queryJS('landing.gameCrash.dismiss')
+    )
+    setOverlayHandler(async () => {
+        toggleOverlay(false)
+        try {
+            await useLauncherJava(serv)
+        } catch(err) {
+            loggerLanding.error('Error while switching to the launcher\'s Java', err)
+            remote.getCurrentWindow().setProgressBar(-1)
+            showLaunchFailure(Lang.queryJS('landing.systemScan.javaDownloadFailureTitle'), Lang.queryJS('landing.systemScan.javaDownloadFailureText'))
+            return
+        }
+        // Let the previous dialog finish closing before opening the next one.
+        await $('#overlayContainer').promise()
+        setOverlayContent(
+            Lang.queryJS('landing.gameCrash.readyTitle'),
+            Lang.queryJS('landing.gameCrash.readyMessage'),
+            Lang.queryJS('landing.gameCrash.launchNow'),
+            Lang.queryJS('landing.gameCrash.later')
+        )
+        setOverlayHandler(() => {
+            toggleOverlay(false)
+            document.getElementById('launch_button').click()
+        })
+        setDismissHandler(() => {
+            toggleOverlay(false)
+        })
+        toggleOverlay(true, true)
+    })
+    setDismissHandler(() => {
+        toggleOverlay(false)
+    })
+    toggleOverlay(true, true)
+}
+
 // Keep reference to Minecraft Process
 let proc
 // Is DiscordRPC enabled
@@ -646,7 +799,9 @@ async function dlAsync(login = true) {
         // const SERVER_JOINED_REGEX = /\[.+\]: \[CHAT\] [a-zA-Z0-9_]{1,16} joined the game/
         const SERVER_JOINED_REGEX = new RegExp(`\\[.+\\]: \\[CHAT\\] ${authUser.displayName} joined the game`)
 
+        let gameLoaded = false
         const onLoadComplete = () => {
+            gameLoaded = true
             toggleLaunchArea(false)
             if(hasRPC){
                 DiscordWrapper.updateDetails(Lang.queryJS('landing.discord.loading'))
@@ -697,6 +852,17 @@ async function dlAsync(login = true) {
             // Bind listeners to stdout.
             proc.stdout.on('data', tempListener)
             proc.stderr.on('data', gameErrorListener)
+
+            // Crash detection: an exit code other than 0 means Minecraft stopped
+            // on an error (closing the game normally exits with 0).
+            proc.on('close', (code, _signal) => {
+                if(code != null && code !== 0){
+                    loggerLaunchSuite.warn(`Minecraft exited with code ${code}.`)
+                    onGameCrash(serv, code)
+                } else if(!gameLoaded){
+                    toggleLaunchArea(false)
+                }
+            })
 
             setLaunchDetails(Lang.queryJS('landing.dlAsync.doneEnjoyServer'))
 

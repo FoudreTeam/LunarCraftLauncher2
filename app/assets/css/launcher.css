@@ -1500,6 +1500,7 @@ input:checked + .toggleSwitchSlider:before { background: var(--night); }
     text-shadow: none;
 }
 #overlayDesc { font: 500 14px/1.6 var(--font-ui); color: var(--mist); text-shadow: none; }
+#overlayAcknowledge { width: auto !important; min-width: 200px; white-space: nowrap; }
 #overlayContent a { color: var(--lavender); }
 #serverSelectHeader, #accountSelectHeader {
     font: 700 20px/1.3 var(--font-display);

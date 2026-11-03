@@ -192,6 +192,16 @@ javaDownloadCorruptedError = "Le JDK téléchargé a un hash incorrect, le fichi
 extractingJava = "Extraction de Java"
 javaInstalled = "Java installé !"
 
+[js.landing.gameCrash]
+title = "Le jeu a planté"
+message = "Minecraft s'est arrêté de manière inattendue (code {code}). Cela vient souvent de la version de Java installée sur votre ordinateur.<br><br>Voulez-vous utiliser la version de Java fournie par le launcher ? Elle sera téléchargée si nécessaire."
+useLauncherJava = "Utiliser la Java du launcher"
+dismiss = "Non merci"
+readyTitle = "Java du launcher prête"
+readyMessage = "Le launcher utilisera désormais sa propre version de Java pour ce serveur. Vous pourrez toujours la changer dans Paramètres > Java."
+launchNow = "Relancer le jeu"
+later = "Plus tard"
+
 [js.landing.dlAsync]
 loadingServerInfo = "Chargement des info serveur.."
 fatalError = "Erreur fatale"
