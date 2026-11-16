@@ -14,6 +14,7 @@ const { LoggerUtil }         = require('helios-core')
 const { RestResponseStatus } = require('helios-core/common')
 const { MojangRestAPI, MojangErrorCode } = require('helios-core/mojang')
 const { MicrosoftAuth, MicrosoftErrorCode } = require('helios-core/microsoft')
+const { HTTPError }          = require('got')
 const { AZURE_CLIENT_ID }    = require('./ipcconstants')
 const Lang = require('./langloader')
 
@@ -180,49 +181,113 @@ const AUTH_MODE = { FULL: 0, MS_REFRESH: 1, MC_REFRESH: 2 }
  * @param {*} authMode The auth mode.
  * @returns An object with all auth data. AccessToken object will be null when mode is MC_REFRESH.
  */
-async function fullMicrosoftAuthFlow(entryCode, authMode) {
+async function fullMicrosoftAuthFlow(entryCode, authMode, onStep = () => {}) {
     try {
 
         let accessTokenRaw
         let accessToken
         if(authMode !== AUTH_MODE.MC_REFRESH) {
-            const accessTokenResponse = await MicrosoftAuth.getAccessToken(entryCode, authMode === AUTH_MODE.MS_REFRESH, AZURE_CLIENT_ID)
-            if(accessTokenResponse.responseStatus === RestResponseStatus.ERROR) {
-                return Promise.reject(microsoftErrorDisplayable(accessTokenResponse.microsoftErrorCode))
-            }
-            accessToken = accessTokenResponse.data
+            accessToken = await authStep('msToken', onStep,
+                () => MicrosoftAuth.getAccessToken(entryCode, authMode === AUTH_MODE.MS_REFRESH, AZURE_CLIENT_ID))
             accessTokenRaw = accessToken.access_token
         } else {
             accessTokenRaw = entryCode
         }
-        
-        const xblResponse = await MicrosoftAuth.getXBLToken(accessTokenRaw)
-        if(xblResponse.responseStatus === RestResponseStatus.ERROR) {
-            return Promise.reject(microsoftErrorDisplayable(xblResponse.microsoftErrorCode))
-        }
-        const xstsResonse = await MicrosoftAuth.getXSTSToken(xblResponse.data)
-        if(xstsResonse.responseStatus === RestResponseStatus.ERROR) {
-            return Promise.reject(microsoftErrorDisplayable(xstsResonse.microsoftErrorCode))
-        }
-        const mcTokenResponse = await MicrosoftAuth.getMCAccessToken(xstsResonse.data)
-        if(mcTokenResponse.responseStatus === RestResponseStatus.ERROR) {
-            return Promise.reject(microsoftErrorDisplayable(mcTokenResponse.microsoftErrorCode))
-        }
-        const mcProfileResponse = await MicrosoftAuth.getMCProfile(mcTokenResponse.data.access_token)
-        if(mcProfileResponse.responseStatus === RestResponseStatus.ERROR) {
-            return Promise.reject(microsoftErrorDisplayable(mcProfileResponse.microsoftErrorCode))
-        }
+
+        const xbl = await authStep('xbl', onStep, () => MicrosoftAuth.getXBLToken(accessTokenRaw))
+        const xsts = await authStep('xsts', onStep, () => MicrosoftAuth.getXSTSToken(xbl))
+        const mcToken = await authStep('mcToken', onStep, () => MicrosoftAuth.getMCAccessToken(xsts))
+        const mcProfile = await authStep('mcProfile', onStep, () => MicrosoftAuth.getMCProfile(mcToken.access_token))
+
         return {
             accessToken,
             accessTokenRaw,
-            xbl: xblResponse.data,
-            xsts: xstsResonse.data,
-            mcToken: mcTokenResponse.data,
-            mcProfile: mcProfileResponse.data
+            xbl,
+            xsts,
+            mcToken,
+            mcProfile
         }
     } catch(err) {
+        if(isDisplayableError(err)) {
+            return Promise.reject(err)
+        }
         log.error(err)
         return Promise.reject(microsoftErrorDisplayable(MicrosoftErrorCode.UNKNOWN))
+    }
+}
+
+/* Steps, retries and network errors */
+
+/** Order of the steps of a Microsoft login, as reported to onStep. */
+exports.AUTH_STEPS = ['msToken', 'xbl', 'xsts', 'mcToken', 'mcProfile']
+
+/** Readable name of the service behind each step (used in error messages). */
+const STEP_SERVICE = {
+    msToken: 'Microsoft',
+    xbl: 'Xbox Live',
+    xsts: 'Xbox Live',
+    mcToken: 'Minecraft',
+    mcProfile: 'Minecraft'
+}
+
+const MAX_ATTEMPTS = 3
+const RETRY_DELAYS_MS = [1500, 4000]
+
+function isDisplayableError(err) {
+    return err != null && typeof err === 'object' && 'title' in err && 'desc' in err
+}
+
+/**
+ * A request that failed because the service could not be reached or is
+ * temporarily down. Retrying (or waiting) may help. Anything else (e.g. an
+ * expired or revoked token) is an actual authentication failure.
+ */
+function isNetworkFailure(error) {
+    if(error == null) {
+        return false
+    }
+    if(error instanceof HTTPError) {
+        const code = error.response?.statusCode
+        return code === 408 || code === 429 || code >= 500
+    }
+    // RequestError (ETIMEDOUT, ECONNRESET, ENOTFOUND...), TimeoutError, ReadError...
+    return true
+}
+
+function networkErrorDisplayable(step) {
+    const service = STEP_SERVICE[step] ?? 'Microsoft'
+    return {
+        title: Lang.queryJS('auth.network.title', { service }),
+        desc: Lang.queryJS('auth.network.desc', { service })
+    }
+}
+
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+
+/**
+ * Run one step of the login, retrying when the service cannot be reached.
+ * Rejects with a displayable error carrying `step` and `network`.
+ */
+async function authStep(step, onStep, request) {
+    for(let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        onStep({ step, state: 'active', attempt, maxAttempts: MAX_ATTEMPTS })
+        const response = await request()
+        if(response.responseStatus !== RestResponseStatus.ERROR) {
+            onStep({ step, state: 'done' })
+            return response.data
+        }
+        const network = isNetworkFailure(response.error)
+        if(network && attempt < MAX_ATTEMPTS) {
+            log.warn(`Step ${step} failed (attempt ${attempt}/${MAX_ATTEMPTS}), retrying.`)
+            onStep({ step, state: 'retry', attempt, maxAttempts: MAX_ATTEMPTS })
+            await sleep(RETRY_DELAYS_MS[attempt - 1])
+            continue
+        }
+        const displayable = network
+            ? networkErrorDisplayable(step)
+            : microsoftErrorDisplayable(response.microsoftErrorCode)
+        onStep({ step, state: 'failed', network })
+        return Promise.reject({ ...displayable, step, network })
     }
 }
 
@@ -245,9 +310,9 @@ function calculateExpiryDate(nowMs, epiresInS) {
  * @param {string} authCode The authCode obtained from microsoft.
  * @returns {Promise.<Object>} Promise which resolves the resolved authenticated account object.
  */
-exports.addMicrosoftAccount = async function(authCode) {
+exports.addMicrosoftAccount = async function(authCode, onStep) {
 
-    const fullAuth = await fullMicrosoftAuthFlow(authCode, AUTH_MODE.FULL)
+    const fullAuth = await fullMicrosoftAuthFlow(authCode, AUTH_MODE.FULL, onStep)
 
     // Advance expiry by 10 seconds to avoid close calls.
     const now = new Date().getTime()
@@ -310,41 +375,6 @@ exports.removeMicrosoftAccount = async function(uuid){
 }
 
 /**
- * Validate the selected account with Mojang's authserver. If the account is not valid,
- * we will attempt to refresh the access token and update that value. If that fails, a
- * new login will be required.
- * 
- * @returns {Promise.<boolean>} Promise which resolves to true if the access token is valid,
- * otherwise false.
- */
-async function validateSelectedMojangAccount(){
-    const current = ConfigManager.getSelectedAccount()
-    const response = await MojangRestAPI.validate(current.accessToken, ConfigManager.getClientToken())
-
-    if(response.responseStatus === RestResponseStatus.SUCCESS) {
-        const isValid = response.data
-        if(!isValid){
-            const refreshResponse = await MojangRestAPI.refresh(current.accessToken, ConfigManager.getClientToken())
-            if(refreshResponse.responseStatus === RestResponseStatus.SUCCESS) {
-                const session = refreshResponse.data
-                ConfigManager.updateMojangAuthAccount(current.uuid, session.accessToken)
-                ConfigManager.save()
-            } else {
-                log.error('Error while validating selected profile:', refreshResponse.error)
-                log.info('Account access token is invalid.')
-                return false
-            }
-            log.info('Account access token validated.')
-            return true
-        } else {
-            log.info('Account access token validated.')
-            return true
-        }
-    }
-    
-}
-
-/**
  * Validate the selected account with Microsoft's authserver. If the account is not valid,
  * we will attempt to refresh the access token and update that value. If that fails, a
  * new login will be required.
@@ -352,58 +382,72 @@ async function validateSelectedMojangAccount(){
  * @returns {Promise.<boolean>} Promise which resolves to true if the access token is valid,
  * otherwise false.
  */
-async function validateSelectedMicrosoftAccount(){
+/**
+ * Refresh a little before the real expiry, so the token is still valid when
+ * the game joins the server (file checks and downloads take some time).
+ */
+const REFRESH_MARGIN_MS = 5 * 60 * 1000
+
+/**
+ * @returns {Promise<{status: 'ok'|'refreshed'|'invalid'|'network', error?: Object}>}
+ */
+async function validateSelectedMicrosoftAccount(onStep){
     const current = ConfigManager.getSelectedAccount()
     const now = new Date().getTime()
-    const mcExpiresAt = current.expiresAt
-    const mcExpired = now >= mcExpiresAt
 
-    if(!mcExpired) {
-        return true
+    if(now + REFRESH_MARGIN_MS < current.expiresAt) {
+        return { status: 'ok' }
     }
 
-    // MC token expired. Check MS token.
+    const saveRefresh = (res, msToken) => {
+        ConfigManager.updateMicrosoftAuthAccount(
+            current.uuid,
+            res.mcToken.access_token,
+            msToken.access_token,
+            msToken.refresh_token,
+            msToken.expires_at,
+            calculateExpiryDate(now, res.mcToken.expires_in)
+        )
+        ConfigManager.save()
+    }
 
-    const msExpiresAt = current.microsoft.expires_at
-    const msExpired = now >= msExpiresAt
+    const fullRefresh = async () => {
+        const res = await fullMicrosoftAuthFlow(current.microsoft.refresh_token, AUTH_MODE.MS_REFRESH, onStep)
+        saveRefresh(res, {
+            access_token: res.accessToken.access_token,
+            // Microsoft may or may not rotate the refresh token.
+            refresh_token: res.accessToken.refresh_token ?? current.microsoft.refresh_token,
+            expires_at: calculateExpiryDate(now, res.accessToken.expires_in)
+        })
+    }
 
-    if(msExpired) {
-        // MS expired, do full refresh.
-        try {
-            const res = await fullMicrosoftAuthFlow(current.microsoft.refresh_token, AUTH_MODE.MS_REFRESH)
-
-            ConfigManager.updateMicrosoftAuthAccount(
-                current.uuid,
-                res.mcToken.access_token,
-                res.accessToken.access_token,
-                res.accessToken.refresh_token,
-                calculateExpiryDate(now, res.accessToken.expires_in),
-                calculateExpiryDate(now, res.mcToken.expires_in)
-            )
-            ConfigManager.save()
-            return true
-        } catch(_err) {
-            return false
+    try {
+        if(now + REFRESH_MARGIN_MS >= current.microsoft.expires_at) {
+            // Microsoft token expired too: full refresh.
+            await fullRefresh()
+        } else {
+            // Only the Minecraft token expired: reuse the Microsoft token.
+            try {
+                const res = await fullMicrosoftAuthFlow(current.microsoft.access_token, AUTH_MODE.MC_REFRESH, onStep)
+                saveRefresh(res, current.microsoft)
+            } catch(err) {
+                if(err?.network) {
+                    throw err
+                }
+                // The Microsoft token was refused (revoked...): try a full refresh.
+                log.warn('Minecraft token refresh refused, trying a full Microsoft refresh.')
+                await fullRefresh()
+            }
         }
-    } else {
-        // Only MC expired, use existing MS token.
-        try {
-            const res = await fullMicrosoftAuthFlow(current.microsoft.access_token, AUTH_MODE.MC_REFRESH)
-
-            ConfigManager.updateMicrosoftAuthAccount(
-                current.uuid,
-                res.mcToken.access_token,
-                current.microsoft.access_token,
-                current.microsoft.refresh_token,
-                current.microsoft.expires_at,
-                calculateExpiryDate(now, res.mcToken.expires_in)
-            )
-            ConfigManager.save()
-            return true
+        log.info(`Session of ${current.displayName} renewed.`)
+        return { status: 'refreshed' }
+    } catch(err) {
+        if(err?.network) {
+            log.warn(`Could not reach ${STEP_SERVICE[err.step] ?? 'Microsoft'} to renew the session of ${current.displayName}.`)
+            return { status: 'network', error: err }
         }
-        catch(_err) {
-            return false
-        }
+        log.error(`The session of ${current.displayName} is no longer valid.`, err)
+        return { status: 'invalid', error: err }
     }
 }
 
@@ -413,13 +457,15 @@ async function validateSelectedMicrosoftAccount(){
  * @returns {Promise.<boolean>} Promise which resolves to true if the access token is valid,
  * otherwise false.
  */
-exports.validateSelected = async function(){
+exports.validateSelected = async function(onStep){
     const current = ConfigManager.getSelectedAccount()
 
-    if(current.type === 'microsoft') {
-        return await validateSelectedMicrosoftAccount()
-    } else {
-        return await validateSelectedMojangAccount()
+    if(current == null) {
+        return { status: 'invalid' }
     }
-    
+    if(current.type === 'microsoft') {
+        return await validateSelectedMicrosoftAccount(onStep)
+    }
+    // Mojang accounts no longer exist (they are removed at startup).
+    return { status: 'invalid' }
 }

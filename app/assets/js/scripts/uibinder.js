@@ -338,71 +338,117 @@ function mergeModConfiguration(o, n, nReq = false){
     return n
 }
 
-async function validateSelectedAccount(){
+/**
+ * Account check shared by everything that needs it (startup, account switch,
+ * launch). Only one check runs at a time: two refreshes running together would
+ * use the same single-use Microsoft refresh token and one of them would fail.
+ */
+let accountValidation = null
+
+/**
+ * Make sure the selected account can be used to play, renewing its session
+ * if needed.
+ *
+ * - The account is only removed when Microsoft says the session is no longer
+ *   valid. If Microsoft/Xbox cannot be reached, the account is kept: the
+ *   launch will retry.
+ *
+ * @param {Object} options
+ * @param {Function} options.onStep Receives the progress of the login steps.
+ * @returns {Promise<{status: 'ok'|'refreshed'|'invalid'|'network'|'none', error?: Object}>}
+ */
+async function validateSelectedAccount({ onStep } = {}){
     const selectedAcc = ConfigManager.getSelectedAccount()
-    if(selectedAcc != null){
-        const val = await AuthManager.validateSelected()
-        if(!val){
-            ConfigManager.removeAuthAccount(selectedAcc.uuid)
-            ConfigManager.save()
-            const accLen = Object.keys(ConfigManager.getAuthAccounts()).length
-            setOverlayContent(
-                Lang.queryJS('uibinder.validateAccount.failedMessageTitle'),
-                accLen > 0
-                    ? Lang.queryJS('uibinder.validateAccount.failedMessage', { 'account': selectedAcc.displayName })
-                    : Lang.queryJS('uibinder.validateAccount.failedMessageSelectAnotherAccount', { 'account': selectedAcc.displayName }),
-                Lang.queryJS('uibinder.validateAccount.loginButton'),
-                Lang.queryJS('uibinder.validateAccount.selectAnotherAccountButton')
-            )
-            setOverlayHandler(() => {
-
-                loginOptionsViewOnLoginSuccess = getCurrentView()
-                loginOptionsViewOnLoginCancel = VIEWS.loginOptions
-
-                if(accLen > 0) {
-                    loginOptionsViewOnCancel = getCurrentView()
-                    loginOptionsViewCancelHandler = () => {
-                        ConfigManager.addMicrosoftAuthAccount(
-                            selectedAcc.uuid,
-                            selectedAcc.accessToken,
-                            selectedAcc.username,
-                            selectedAcc.expiresAt,
-                            selectedAcc.microsoft.access_token,
-                            selectedAcc.microsoft.refresh_token,
-                            selectedAcc.microsoft.expires_at
-                        )
-                        ConfigManager.save()
-                        validateSelectedAccount()
-                    }
-                    loginOptionsCancelEnabled(true)
-                } else {
-                    loginOptionsCancelEnabled(false)
-                }
-                toggleOverlay(false)
-                switchView(getCurrentView(), VIEWS.loginOptions)
-            })
-            setDismissHandler(() => {
-                if(accLen > 1){
-                    prepareAccountSelectionList()
-                    $('#overlayContent').fadeOut(250, () => {
-                        bindOverlayKeys(true, 'accountSelectContent', true)
-                        $('#accountSelectContent').fadeIn(250)
-                    })
-                } else {
-                    const accountsObj = ConfigManager.getAuthAccounts()
-                    const accounts = Array.from(Object.keys(accountsObj), v => accountsObj[v])
-                    // This function validates the account switch.
-                    setSelectedAccount(accounts[0].uuid)
-                    toggleOverlay(false)
-                }
-            })
-            toggleOverlay(true, accLen > 0)
-        } else {
-            return true
-        }
-    } else {
-        return true
+    if(selectedAcc == null){
+        return { status: 'none' }
     }
+
+    if(accountValidation == null || accountValidation.uuid !== selectedAcc.uuid){
+        const listeners = new Set()
+        const promise = AuthManager.validateSelected(step => listeners.forEach(l => {
+            try { l(step) } catch (_err) { /* UI listener error, ignore */ }
+        }))
+            .catch(err => {
+                loggerUICore.error('Unexpected error while checking the account.', err)
+                return { status: 'network', error: err }
+            })
+            .then(result => {
+                if(result.status === 'invalid'){
+                    promptAccountRelogin(selectedAcc)
+                }
+                return result
+            })
+            .finally(() => {
+                if(accountValidation != null && accountValidation.promise === promise){
+                    accountValidation = null
+                }
+            })
+        accountValidation = { uuid: selectedAcc.uuid, promise, listeners }
+    }
+
+    if(onStep != null){
+        accountValidation.listeners.add(onStep)
+    }
+    return accountValidation.promise
+}
+
+/**
+ * The session of this account cannot be renewed: remove it and ask the
+ * player to log in again (or pick another account).
+ */
+function promptAccountRelogin(selectedAcc){
+    if(ConfigManager.getAuthAccount(selectedAcc.uuid) != null){
+        ConfigManager.removeAuthAccount(selectedAcc.uuid)
+        ConfigManager.save()
+        updateSelectedAccount(ConfigManager.getSelectedAccount())
+    }
+    const accLen = Object.keys(ConfigManager.getAuthAccounts()).length
+    setOverlayContent(
+        Lang.queryJS('uibinder.validateAccount.failedMessageTitle'),
+        accLen > 0
+            ? Lang.queryJS('uibinder.validateAccount.failedMessage', { 'account': selectedAcc.displayName })
+            : Lang.queryJS('uibinder.validateAccount.failedMessageSelectAnotherAccount', { 'account': selectedAcc.displayName }),
+        Lang.queryJS('uibinder.validateAccount.loginButton'),
+        Lang.queryJS('uibinder.validateAccount.selectAnotherAccountButton')
+    )
+    setOverlayHandler(() => {
+
+        loginOptionsViewOnLoginSuccess = getCurrentView()
+        loginOptionsViewOnLoginCancel = VIEWS.loginOptions
+
+        if(accLen > 0) {
+            loginOptionsViewOnCancel = getCurrentView()
+            loginOptionsViewCancelHandler = () => {
+                // Do not put back the account whose session is dead (it would
+                // fail again on launch): use one of the remaining accounts.
+                const remaining = Object.keys(ConfigManager.getAuthAccounts())
+                if(remaining.length > 0){
+                    setSelectedAccount(remaining[0])
+                }
+            }
+            loginOptionsCancelEnabled(true)
+        } else {
+            loginOptionsCancelEnabled(false)
+        }
+        toggleOverlay(false)
+        switchView(getCurrentView(), VIEWS.loginOptions)
+    })
+    setDismissHandler(() => {
+        if(accLen > 1){
+            prepareAccountSelectionList()
+            $('#overlayContent').fadeOut(250, () => {
+                bindOverlayKeys(true, 'accountSelectContent', true)
+                $('#accountSelectContent').fadeIn(250)
+            })
+        } else {
+            const accountsObj = ConfigManager.getAuthAccounts()
+            const accounts = Array.from(Object.keys(accountsObj), v => accountsObj[v])
+            // This function validates the account switch.
+            setSelectedAccount(accounts[0].uuid)
+            toggleOverlay(false)
+        }
+    })
+    toggleOverlay(true, accLen > 0)
 }
 
 /**

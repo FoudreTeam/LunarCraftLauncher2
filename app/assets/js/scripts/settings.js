@@ -342,8 +342,82 @@ settingsNavDone.onclick = () => {
 const msftLoginLogger = LoggerUtil.getLogger('Microsoft Login')
 const msftLogoutLogger = LoggerUtil.getLogger('Microsoft Logout')
 
+/* Waiting screen: steps of the Microsoft login */
+
+const LOGIN_STEPS = ['browser', ...AuthManager.AUTH_STEPS]
+
+/**
+ * Prepare the waiting screen for a login (list of steps) or a logout.
+ * @param {'login'|'logout'} mode
+ */
+function setWaitingMode(mode){
+    const title = document.getElementById('waitingTitle')
+    const subtitle = document.getElementById('waitingSubtitle')
+    const list = document.getElementById('waitingSteps')
+    document.getElementById('waitingContainer').toggleAttribute('steps', mode === 'login')
+    if(mode === 'login'){
+        title.textContent = Lang.queryJS('waiting.login.title')
+        subtitle.textContent = Lang.queryJS('waiting.login.subtitle')
+        list.innerHTML = ''
+        for(const step of LOGIN_STEPS){
+            const li = document.createElement('li')
+            li.dataset.step = step
+            li.dataset.state = 'pending'
+            const label = document.createElement('span')
+            label.className = 'waitingStepLabel'
+            label.textContent = step === 'browser' ? Lang.queryJS('waiting.login.browser') : Lang.queryJS(`auth.steps.${step}`)
+            const detail = document.createElement('span')
+            detail.className = 'waitingStepDetail'
+            li.append(label, detail)
+            list.appendChild(li)
+        }
+        list.hidden = false
+        setLoginStep({ step: 'browser', state: 'active' })
+    } else {
+        title.textContent = Lang.queryJS('waiting.logout.title')
+        subtitle.textContent = ''
+        list.hidden = true
+    }
+}
+
+/**
+ * Update one step of the list. Steps before an active one are marked done.
+ */
+function setLoginStep({ step, state, attempt, maxAttempts }){
+    const items = Array.from(document.querySelectorAll('#waitingSteps li'))
+    const index = items.findIndex(li => li.dataset.step === step)
+    if(index < 0){
+        return
+    }
+    if(state !== 'failed'){
+        items.slice(0, index).forEach(li => {
+            if(li.dataset.state !== 'failed'){
+                li.dataset.state = 'done'
+                li.querySelector('.waitingStepDetail').textContent = ''
+            }
+        })
+    }
+    const item = items[index]
+    item.dataset.state = state === 'retry' ? 'active' : state
+    const detail = item.querySelector('.waitingStepDetail')
+    if(state === 'retry'){
+        detail.textContent = Lang.queryJS('waiting.login.retrying', { attempt: attempt + 1, max: maxAttempts })
+    } else if(state === 'failed'){
+        detail.textContent = Lang.queryJS('waiting.login.failed')
+    } else if(state !== 'active' || attempt == null || attempt === 1){
+        detail.textContent = ''
+    }
+}
+
+function setLoginSubtitle(text){
+    document.getElementById('waitingSubtitle').textContent = text
+}
+
+const sleepMs = ms => new Promise(resolve => setTimeout(resolve, ms))
+
 // Bind the add microsoft account button.
 document.getElementById('settingsAddMicrosoftAccount').onclick = (e) => {
+    setWaitingMode('login')
     switchView(getCurrentView(), VIEWS.waiting, 500, 500, () => {
         ipcRenderer.send(MSFT_OPCODE.OPEN_LOGIN, VIEWS.settings, VIEWS.settings)
     })
@@ -405,13 +479,20 @@ ipcRenderer.on(MSFT_OPCODE.REPLY_LOGIN, (_, ...arguments_) => {
             msftLoginLogger.info('Acquired authCode, proceeding with authentication.')
 
             const authCode = queryMap.code
-            AuthManager.addMicrosoftAccount(authCode).then(value => {
+            setLoginStep({ step: 'browser', state: 'done' })
+            setLoginSubtitle(Lang.queryJS('waiting.login.inProgress'))
+            AuthManager.addMicrosoftAccount(authCode, setLoginStep).then(async value => {
+                document.querySelectorAll('#waitingSteps li').forEach(li => { li.dataset.state = 'done' })
+                setLoginSubtitle(Lang.queryJS('waiting.login.success', { account: value.displayName }))
+                await sleepMs(900)
                 updateSelectedAccount(value)
                 switchView(getCurrentView(), viewOnClose, 500, 500, async () => {
                     await prepareSettings()
                 })
             })
-                .catch((displayableError) => {
+                .catch(async (displayableError) => {
+                    setLoginSubtitle(Lang.queryJS('waiting.login.failedSubtitle'))
+                    await sleepMs(1800)
 
                     let actualDisplayableError
                     if(isDisplayableError(displayableError)) {
@@ -504,6 +585,7 @@ function processLogOut(val, isLastAccount){
     const uuid = parent.getAttribute('uuid')
     // Only Microsoft accounts exist (Mojang accounts are removed at startup).
     msAccDomElementCache = parent
+    setWaitingMode('logout')
     switchView(getCurrentView(), VIEWS.waiting, 500, 500, () => {
         ipcRenderer.send(MSFT_OPCODE.OPEN_LOGOUT, uuid, isLastAccount)
     })

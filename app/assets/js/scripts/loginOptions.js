@@ -18,6 +18,7 @@ function loginOptionsCancelEnabled(val){
 }
 
 loginOptionMicrosoft.onclick = (e) => {
+    setWaitingMode('login')
     switchView(getCurrentView(), VIEWS.waiting, 500, 500, () => {
         ipcRenderer.send(
             MSFT_OPCODE.OPEN_LOGIN,

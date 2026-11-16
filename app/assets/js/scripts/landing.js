@@ -140,11 +140,89 @@ function setLaunchEnabled(val){
 }
 
 // Bind launch button
+/* Account check before launching */
+
+const AUTH_OK = ['ok', 'refreshed']
+
+function describeAuthStep({ step, state, attempt, maxAttempts }){
+    const name = Lang.queryJS(`auth.steps.${step}`)
+    if(state === 'retry'){
+        return Lang.queryJS('landing.account.retrying', { step: name, attempt: attempt + 1, max: maxAttempts })
+    }
+    return Lang.queryJS('landing.account.step', { step: name })
+}
+
+/**
+ * The connection to Microsoft/Xbox failed: offer to try again.
+ */
+function showAccountNetworkFailure(error){
+    setOverlayContent(
+        error?.title ?? Lang.queryJS('landing.account.networkTitle'),
+        error?.desc ?? Lang.queryJS('landing.account.networkDesc'),
+        Lang.queryJS('landing.account.retry'),
+        Lang.queryJS('landing.account.cancel')
+    )
+    setOverlayHandler(() => {
+        toggleOverlay(false)
+        document.getElementById('launch_button').click()
+    })
+    setDismissHandler(() => {
+        toggleOverlay(false)
+    })
+    toggleOverlay(true, true)
+}
+
+/**
+ * Make sure the selected account can join the server before doing anything
+ * else: renew its session if needed, showing each step on the launch area.
+ *
+ * @returns {Promise<boolean>} true if the launch can continue.
+ */
+async function ensureAccountReady(){
+    if(ConfigManager.getSelectedAccount() == null){
+        toggleLaunchArea(false)
+        loginOptionsCancelEnabled(true)
+        loginOptionsViewOnLoginSuccess = VIEWS.landing
+        loginOptionsViewOnLoginCancel = VIEWS.loginOptions
+        loginOptionsViewOnCancel = VIEWS.landing
+        switchView(getCurrentView(), VIEWS.loginOptions)
+        return false
+    }
+
+    setLaunchDetails(Lang.queryJS('landing.account.checking'))
+    const result = await validateSelectedAccount({
+        onStep: (progress) => {
+            if(!launchCancelled && progress.state !== 'done' && progress.state !== 'failed'){
+                setLaunchDetails(describeAuthStep(progress))
+            }
+        }
+    })
+    if(launchCancelled){
+        return false
+    }
+    if(AUTH_OK.includes(result.status) && ConfigManager.getSelectedAccount() != null){
+        return true
+    }
+
+    toggleLaunchArea(false)
+    if(result.status === 'network'){
+        showAccountNetworkFailure(result.error)
+    }
+    // 'invalid': validateSelectedAccount already asks the player to log in again.
+    return false
+}
+
 document.getElementById('launch_button').addEventListener('click', async e => {
     loggerLanding.info('Launching game..')
     launchCancelled = false
     setLaunchCancellable(true)
     try {
+        toggleLaunchArea(true)
+        setLaunchPercentage(0, 100)
+        if(!await ensureAccountReady()){
+            return
+        }
+
         const server = (await DistroAPI.getDistribution()).getServerById(ConfigManager.getSelectedServer())
         const jExe = ConfigManager.getJavaExecutable(ConfigManager.getSelectedServer())
         if(jExe == null){
@@ -195,8 +273,10 @@ function updateSelectedAccount(authUser){
             username = authUser.displayName
         }
         if(authUser.uuid != null){
-            document.getElementById('avatarContainer').style.backgroundImage = `url('https://mc-heads.net/body/${authUser.uuid}/right')`
+            document.getElementById('avatarContainer').style.backgroundImage = `url('https://mc-heads.net/body/${encodeURIComponent(authUser.uuid)}/right')`
         }
+    } else {
+        document.getElementById('avatarContainer').style.backgroundImage = ''
     }
     user_text.textContent = username
 }
@@ -791,7 +871,25 @@ async function dlAsync(login = true) {
     setLaunchCancellable(false)
 
     if(login) {
+        // The session was checked before the downloads. Check again in case it
+        // expired in the meantime (instant when it is still valid).
+        setLaunchDetails(Lang.queryJS('landing.account.checking'))
+        const authCheck = await validateSelectedAccount({
+            onStep: (progress) => {
+                if(progress.state !== 'done' && progress.state !== 'failed'){
+                    setLaunchDetails(describeAuthStep(progress))
+                }
+            }
+        })
         const authUser = ConfigManager.getSelectedAccount()
+        if(authUser == null || !AUTH_OK.includes(authCheck.status)){
+            loggerLaunchSuite.warn(`Launch stopped: account not usable (${authCheck.status}).`)
+            toggleLaunchArea(false)
+            if(authCheck.status === 'network'){
+                showAccountNetworkFailure(authCheck.error)
+            }
+            return
+        }
         loggerLaunchSuite.info(`Sending selected account (${authUser.displayName}) to ProcessBuilder.`)
         let pb = new ProcessBuilder(serv, versionData, modLoaderData, authUser, remote.app.getVersion())
         setLaunchDetails(Lang.queryJS('landing.dlAsync.launchingGame'))

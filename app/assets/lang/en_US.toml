@@ -126,7 +126,7 @@ whatsNew = "Nouveautés"
 updateReleaseNotes = "Notes de mise à jour"
 
 [ejs.waiting]
-waitingText = "En attente de Microsoft.."
+waitingText = "Connexion à Microsoft"
 
 [ejs.welcome]
 continueButton = "Continuer"
@@ -312,6 +312,39 @@ selectAnotherAccountButton = "Sélectionner un autre compte"
 checkingForUpdateButton = "Vérification des mises à jour..."
 installNowButton = "Installer maintenant"
 checkForUpdatesButton = "Vérifier les mises à jour"
+
+[js.auth.steps]
+msToken = "Vérification du compte Microsoft"
+xbl = "Connexion à Xbox Live"
+xsts = "Autorisation Xbox Live"
+mcToken = "Connexion à Minecraft"
+mcProfile = "Récupération du profil Minecraft"
+
+[js.auth.network]
+title = "Impossible de joindre {service}"
+desc = "Le launcher n'a pas réussi à contacter les serveurs de {service}, même après plusieurs tentatives. Votre compte n'a pas été supprimé.<br><br>Vérifiez votre connexion Internet. Un pare-feu, un antivirus ou un VPN peut aussi bloquer la connexion. Réessayez dans quelques instants."
+
+[js.waiting.login]
+title = "Connexion à votre compte"
+subtitle = "Terminez la connexion dans la fenêtre Microsoft qui vient de s'ouvrir."
+browser = "Connexion dans la fenêtre Microsoft"
+inProgress = "Connexion en cours, ne fermez pas le launcher."
+retrying = "essai {attempt}/{max}"
+failed = "échec"
+failedSubtitle = "La connexion a échoué."
+success = "Connecté en tant que {account} !"
+
+[js.waiting.logout]
+title = "Déconnexion de Microsoft…"
+
+[js.landing.account]
+checking = "Vérification du compte…"
+step = "Compte : {step}…"
+retrying = "Compte : {step} (nouvelle tentative {attempt}/{max})…"
+networkTitle = "Connexion au compte impossible"
+networkDesc = "Le launcher n'a pas réussi à contacter les serveurs de Microsoft. Vérifiez votre connexion Internet puis réessayez."
+retry = "Réessayer"
+cancel = "Annuler"
 
 [js.auth.microsoft.error]
 noProfileTitle = "Erreur lors de la connexion :<br>Profil non configuré"
